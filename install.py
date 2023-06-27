@@ -43,6 +43,9 @@ subprocess.run(["cp", "/etc/resolv.conf", "/mnt/etc/resolv.conf"])
 subprocess.run(["chroot", "/mnt", "apt", "update"])
 subprocess.run(["chroot", "/mnt", "apt", "install", "-y", "snapper", "flatpak", "gnome-desktop", "pacinstall", "neovim"])
 
+ # add flathub repository
+subprocess.run(["chroot", "/mnt", "flatpak", "remote-add", "--if-not-exists", "flathub", "https://flathub.org/repo/flathub.flatpakrepo"])
+
   # install bootloader
 subprocess.run(["chroot", "/mnt", "grub-install", "--target=x86_64-efi", "--efi-directory=/boot/efi", "--bootloader-id=ubuntu", "--recheck"])
 subprocess.run(["chroot", "/mnt", "update-grub"])
