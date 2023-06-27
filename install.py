@@ -40,6 +40,15 @@ subprocess.run(["mount", "--bind", "/sys", "/mnt/sys"])
 subprocess.run(["cp", "/etc/resolv.conf", "/mnt/etc/resolv.conf"])
 
   # configure system
+subprocess.run(["chroot", "/mnt", "apt", "update"])
+subprocess.run(["chroot", "/mnt", "apt", "install", "-y", "snapper", "flatpak", "gnome-desktop", "pacinstall", "neovim"])
+
   # install bootloader
-  #
-  # post-install tasks
+subprocess.run(["chroot", "/mnt", "grub-install", "--target=x86_64-efi", "--efi-directory=/boot/efi", "--bootloader-id=ubuntu", "--recheck"])
+subprocess.run(["chroot", "/mnt", "update-grub"])
+
+  # cleaning up
+subprocess.run(["umount", "-R", "/mnt"])
+subprocess.run(["cryptsetup", "close", "sda2_crypt"])
+
+print("Installation completed.")
