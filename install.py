@@ -30,7 +30,8 @@ subprocess.run(["mkdir", "/mnt/.snapshots"])
 subprocess.run(["mount", "-o", "subvol=snapshots", "/dev/mapper/sda2_crypt", "/mnt/.snapshots"])
 
   # install base system
-  #
+subprocess.run(["debootstrap", "focal", "/mnt"])
+
   # configure system
   #
   # install bootloader
