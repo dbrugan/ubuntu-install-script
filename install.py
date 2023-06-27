@@ -5,7 +5,7 @@ subprocess.run(["parted", "/dev/sda", "mklabel", "gpt"])
 
   # format partitions
 subprocess.run(["parted", "/dev/sda", "mkpart", "EFI", "fat32", "1MiB", "512MiB"])
-subprocess.run(["parted", "/dev/sda", "mkpart", "Root", "ext4", "512MiB", "100%"])
+subprocess.run(["parted", "/dev/sda", "mkpart", "Root", "btrfs", "512MiB", "100%"])
 subprocess.run(["parted", "/dev/sda", "set", "1", "boot", "on"])
 
   # encrypt partitions
