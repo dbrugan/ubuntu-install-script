@@ -32,8 +32,14 @@ subprocess.run(["mount", "-o", "subvol=snapshots", "/dev/mapper/sda2_crypt", "/m
   # install base system
 subprocess.run(["debootstrap", "focal", "/mnt"])
 
+  # mount directories
+subprocess.run(["mount", "--bind", "/dev", "/mnt/dev"])
+subprocess.run(["mount", "--bind", "/dev/pts", "/mnt/dev/pts"])
+subprocess.run(["mount", "--bind", "/proc", "/mnt/proc"])
+subprocess.run(["mount", "--bind", "/sys", "/mnt/sys"])
+subprocess.run(["cp", "/etc/resolv.conf", "/mnt/etc/resolv.conf"])
+
   # configure system
-  #
   # install bootloader
   #
   # post-install tasks
