@@ -33,9 +33,6 @@ chroot /mnt apt install -y snapper flatpak gnome-desktop pacinstall neovim zsh
 
 chroot /mnt flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
-chroot /mnt chsh -s /usr/bin/zsh
-chroot /mnt useradd -D -s /usr/bin/zsh
-
 chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
 chroot /mnt update-grub
 
