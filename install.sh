@@ -3,8 +3,8 @@ sudo parted /dev/sda mkpart EFI fat32 1MiB 512MiB
 sudo parted /dev/sda mkpart Root btrfs 512MiB 100%
 sudo parted /dev/sda set 1 boot on
 
-cryptsetup luksFormat /dev/sda2
-cryptsetup open --type luks /dev/sda2 sda2_crypt
+sudo cryptsetup luksFormat /dev/sda2
+sudo cryptsetup open --type luks /dev/sda2 sda2_crypt
 mkfs.btrfs /dev/mapper/sda2_crypt 
 
 mount /dev/mapper/sda2_crypt /mnt
