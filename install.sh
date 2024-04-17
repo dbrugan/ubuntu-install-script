@@ -7,12 +7,12 @@ sudo cryptsetup luksFormat /dev/sda2
 sudo cryptsetup open --type luks /dev/sda2 sda2_crypt
 sudo mkfs.btrfs /dev/mapper/sda2_crypt 
 
-mount /dev/mapper/sda2_crypt /mnt
+sudo mount /dev/mapper/sda2_crypt /mnt
 
-btrfs subvolume create /mnt/root
-btrfs subvolume create /mnt/home
-btrfs subvolume create /mnt/snapshots
-umount /mnt
+sudo btrfs subvolume create /mnt/root
+sudo btrfs subvolume create /mnt/home
+sudo btrfs subvolume create /mnt/snapshots
+sudo umount /mnt
 
 mount -o subvol=root /dev/mapper/sda2_crypt /mnt
 mkdir /mnt/home
