@@ -14,11 +14,11 @@ sudo btrfs subvolume create /mnt/home
 sudo btrfs subvolume create /mnt/snapshots
 sudo umount /mnt
 
-mount -o subvol=root /dev/mapper/sda2_crypt /mnt
-mkdir /mnt/home
-mount -o subvol=home /dev/mapper/sda2_crypt /mnt/home
-mkdir /mnt/.snapshots
-mount -o subvol=snapshots /dev/mapper/sda2_crypt /mnt/.snapshots
+sudo mount -o subvol=root /dev/mapper/sda2_crypt /mnt
+sudo mkdir /mnt/home
+sudo mount -o subvol=home /dev/mapper/sda2_crypt /mnt/home
+sudo mkdir /mnt/.snapshots
+sudo mount -o subvol=snapshots /dev/mapper/sda2_crypt /mnt/.snapshots
 
 debootstrap jammy /mnt
 
