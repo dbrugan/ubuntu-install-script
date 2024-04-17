@@ -5,7 +5,7 @@ sudo parted /dev/sda set 1 boot on
 
 sudo cryptsetup luksFormat /dev/sda2
 sudo cryptsetup open --type luks /dev/sda2 sda2_crypt
-mkfs.btrfs /dev/mapper/sda2_crypt 
+sudo mkfs.btrfs /dev/mapper/sda2_crypt 
 
 mount /dev/mapper/sda2_crypt /mnt
 
