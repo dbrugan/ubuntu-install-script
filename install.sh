@@ -20,7 +20,7 @@ mount -o subvol=home /dev/mapper/sda2_crypt /mnt/home
 mkdir /mnt/.snapshots
 mount -o subvol=snapshots /dev/mapper/sda2_crypt /mnt/.snapshots
 
-debootstrap focal /mnt
+debootstrap jammy /mnt
 
 mount --bind /dev /mnt/dev
 mount --bind /dev/pts /mnt/dev/pts
