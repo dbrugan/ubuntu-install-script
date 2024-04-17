@@ -27,7 +27,7 @@ sudo mount --bind /dev /mnt/dev
 sudo mount --bind /dev/pts /mnt/dev/pts
 sudo mount --bind /proc /mnt/proc
 sudo mount --bind /sys /mnt/sys
-cp /etc/resolv.conf /mnt/etc/resolv.conf
+sudo cp /etc/resolv.conf /mnt/etc/resolv.conf
 
 chroot /mnt /bin/bash <<EOF
 export LANG=C
