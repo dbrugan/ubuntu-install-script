@@ -28,13 +28,16 @@ mount --bind /proc /mnt/proc
 mount --bind /sys /mnt/sys
 cp /etc/resolv.conf /mnt/etc/resolv.conf
 
-chroot /mnt apt update
-chroot /mnt apt install -y snapper flatpak gnome-desktop pacinstall neovim zsh
+chroot /mnt /bin/bash <<EOF
+export LANG=C
+export DEBIAN_FRONTEND=noninteractive
+EOF
+# chroot /mnt apt install -y snapper flatpak gnome-desktop pacinstall neovim zsh
 
-chroot /mnt flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+# chroot /mnt flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
-chroot /mnt update-grub
+# chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
+# chroot /mnt update-grub
 
 umount -R /mnt
 cryptsetup close sda2_crypt
