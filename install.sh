@@ -1,7 +1,7 @@
-parted /dev/sda mklabel gpt
-parted /dev/sda mkpart EFI fat32 1MiB 512MiB
-parted /dev/sda mkpart Root btrfs 512MiB 100%
-parted /dev/sda set 1 boot on
+sudo parted /dev/sda mklabel gpt
+sudo parted /dev/sda mkpart EFI fat32 1MiB 512MiB
+sudo parted /dev/sda mkpart Root btrfs 512MiB 100%
+sudo parted /dev/sda set 1 boot on
 
 cryptsetup luksFormat /dev/sda2
 cryptsetup open --type luks /dev/sda2 sda2_crypt
