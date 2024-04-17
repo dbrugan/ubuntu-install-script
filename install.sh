@@ -31,6 +31,8 @@ cp /etc/resolv.conf /mnt/etc/resolv.conf
 chroot /mnt /bin/bash <<EOF
 export LANG=C
 export DEBIAN_FRONTEND=noninteractive
+
+apt update && apt install -y linux-image-generic grub-efi btrfs-progs cryptsetup flatpak pacstall neovim
 EOF
 # chroot /mnt apt install -y snapper flatpak gnome-desktop pacinstall neovim zsh
 
