@@ -23,10 +23,10 @@ sudo mount -o subvol=snapshots /dev/mapper/sda2_crypt /mnt/.snapshots
 sudo apt install debootstrap
 sudo debootstrap jammy /mnt
 
-mount --bind /dev /mnt/dev
-mount --bind /dev/pts /mnt/dev/pts
-mount --bind /proc /mnt/proc
-mount --bind /sys /mnt/sys
+sudo mount --bind /dev /mnt/dev
+sudo mount --bind /dev/pts /mnt/dev/pts
+sudo mount --bind /proc /mnt/proc
+sudo mount --bind /sys /mnt/sys
 cp /etc/resolv.conf /mnt/etc/resolv.conf
 
 chroot /mnt /bin/bash <<EOF
