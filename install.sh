@@ -21,7 +21,7 @@ sudo mkdir /mnt/.snapshots
 sudo mount -o subvol=snapshots /dev/mapper/sda2_crypt /mnt/.snapshots
 
 sudo apt install debootstrap
-debootstrap jammy /mnt
+sudo debootstrap jammy /mnt
 
 mount --bind /dev /mnt/dev
 mount --bind /dev/pts /mnt/dev/pts
