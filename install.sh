@@ -34,13 +34,15 @@ export LANG=C
 export DEBIAN_FRONTEND=noninteractive
 
 apt update && apt install -y linux-image-generic grub-efi btrfs-progs cryptsetup flatpak pacstall neovim
+
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
+update-grub
 EOF
 # chroot /mnt apt install -y snapper flatpak gnome-desktop pacinstall neovim zsh
 
-# chroot /mnt flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
-# chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
-# chroot /mnt update-grub
 
 umount -R /mnt
 cryptsetup close sda2_crypt
