@@ -1,6 +1,10 @@
 #!/bin/bash
 
 disk="/dev/sda"
+
+# Erase existing disk labels and partitions
+wipefs -af "$disk"
+
 # creating partitions
 parted --script "$disk" mklabel gpt
 parted --script "$disk" mkpart ESP fat32 1MiB 513MiB
@@ -21,6 +25,7 @@ btrfs subvolume create /mnt/home
 btrfs subvolume create /mnt/snapshots
 btrfs subvolume create /mnt/cache
 btrfs subvolume create /mnt/log
+
 umount /mnt
 
 # mounting system partitions
