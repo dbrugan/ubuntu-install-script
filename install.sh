@@ -35,6 +35,16 @@ sudo mount --bind /proc /mnt/proc
 sudo mount --bind /sys /mnt/sys
 sudo cp /etc/resolv.conf /mnt/etc/resolv.conf
 
+# define jammy sources
+jammy_sources="\
+  deb http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
+  deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
+  deb http://archive.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
+  deb http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
+  "
+
+echo "$jammy_sources" > /mnt/etc/apt/sources.list
+
 chroot /mnt /bin/bash <<EOF
 export LANG=C
 export DEBIAN_FRONTEND=noninteractive
