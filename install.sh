@@ -9,10 +9,10 @@ parted --script /dev/sda mkpart CRYPTROOT btrfs 512MiB 100%
 # formatting partitions
 mkfs.fat -F 32 /dev/sda1
 cryptsetup luksFormat /dev/sda2
-cryptsetup open /dev/sda2 sda2_crypt
-mkfs.btrfs /dev/mapper/sda2_crypt 
+cryptsetup open /dev/sda2 cryptroot
+mkfs.btrfs /dev/mapper/cryptroot
 
-mount /dev/mapper/sda2_crypt /mnt
+mount /dev/mapper/cryptroot /mnt
 
 btrfs subvolume create /mnt/root
 btrfs subvolume create /mnt/home
@@ -21,15 +21,15 @@ btrfs subvolume create /mnt/cache
 btrfs subvolume create /mnt/log
 umount /mnt
 
-mount -o subvol=root /dev/mapper/sda2_crypt /mnt
+mount -o subvol=root /dev/mapper/cryptroot /mnt
 mkdir /mnt/home
-mount -o subvol=home /dev/mapper/sda2_crypt /mnt/home
+mount -o subvol=home /dev/mapper/cryptroot /mnt/home
 mkdir /mnt/.snapshots
-mount -o subvol=snapshots /dev/mapper/sda2_crypt /mnt/.snapshots
+mount -o subvol=snapshots /dev/mapper/cryptroot /mnt/.snapshots
 mkdir -p /mnt/var/cache
-mount -o subvol=cache /dev/mapper/sda2_crypt /mnt/var/cache
+mount -o subvol=cache /dev/mapper/cryptroot /mnt/var/cache
 mkdir /mnt/var/log
-mount -o subvol=log /dev/mapper/sda2_crypt /mnt/var/log
+mount -o subvol=log /dev/mapper/cryptroot /mnt/var/log
 
 apt install debootstrap
 debootstrap jammy /mnt
@@ -63,4 +63,4 @@ update-grub
 EOF
 
 umount -R /mnt
-cryptsetup close sda2_crypt
+cryptsetup close cryptroot
