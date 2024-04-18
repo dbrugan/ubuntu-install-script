@@ -1,12 +1,15 @@
 #!/bin/bash
 
+# creating partitions
 parted --script /dev/sda mklabel gpt
 parted --script /dev/sda mkpart ESP fat32 1MiB 513MiB
 parted --script /dev/sda set 1 esp on
-parted --script /dev/sda mkpart Root btrfs 512MiB 100%
+parted --script /dev/sda mkpart CRYPTROOT btrfs 512MiB 100%
 
+# formatting partitions
+mkfs.fat -F 32 /dev/sda1
 cryptsetup luksFormat /dev/sda2
-cryptsetup open --type luks /dev/sda2 sda2_crypt
+cryptsetup open /dev/sda2 sda2_crypt
 mkfs.btrfs /dev/mapper/sda2_crypt 
 
 mount /dev/mapper/sda2_crypt /mnt
