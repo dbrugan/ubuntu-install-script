@@ -9,39 +9,37 @@ wipefs -af "$disk"
 parted --script "$disk" mklabel gpt
 parted --script "$disk" mkpart ESP fat32 1MiB 513MiB
 parted --script "$disk" set 1 esp on
-parted --script "$disk" mkpart CRYPTROOT btrfs 513MiB 100%
+parted --script "$disk" mkpart ROOT btrfs 513MiB 100%
 
 # formatting partitions
 mkfs.fat -F 32 "${disk}"1
-cryptsetup luksFormat "${disk}"2
-cryptsetup open "${disk}"2 cryptroot
-mkfs.btrfs /dev/mapper/cryptroot
+mkfs.btrfs "${disk}"2
 
 # configure btrfs subvolumes
-mount /dev/mapper/cryptroot /mnt
+mount "${disk}"2 /mnt
 
-btrfs subvolume create /mnt/root
-btrfs subvolume create /mnt/home
-btrfs subvolume create /mnt/snapshots
-btrfs subvolume create /mnt/cache
-btrfs subvolume create /mnt/log
+btrfs subvolume create /mnt/@
+btrfs subvolume create /mnt/@home
+btrfs subvolume create /mnt/@snapshots
+btrfs subvolume create /mnt/@cache
+btrfs subvolume create /mnt/@log
 
 umount /mnt
 
 # mounting system partitions
-mount -o subvol=root /dev/mapper/cryptroot /mnt
+mount -o subvol=@ "${disk}"2 /mnt
 
 mkdir /mnt/home
-mount -o subvol=home /dev/mapper/cryptroot /mnt/home
+mount -o subvol=@home "${disk}"2 /mnt/home
 
 mkdir /mnt/.snapshots
-mount -o subvol=snapshots /dev/mapper/cryptroot /mnt/.snapshots
+mount -o subvol=@snapshots "${disk}"2 /mnt/.snapshots
 
 mkdir -p /mnt/var/cache
-mount -o subvol=cache /dev/mapper/cryptroot /mnt/var/cache
+mount -o subvol=@cache "${disk}"2 /mnt/var/cache
 
 mkdir /mnt/var/log
-mount -o subvol=log /dev/mapper/cryptroot /mnt/var/log
+mount -o subvol=@log "${disk}"2 /mnt/var/log
 
 mkdir -p /mnt/boot/efi
 mount "${disk}"1 /mnt/boot/efi
@@ -69,7 +67,7 @@ chroot /mnt /bin/bash <<EOF
 export LANG=C
 export DEBIAN_FRONTEND=noninteractive
 
-apt update && apt install -y linux-image-generic grub-efi btrfs-progs cryptsetup flatpak neovim
+apt update && apt install -y linux-image-generic grub-efi btrfs-progs flatpak neovim
 
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
@@ -78,4 +76,3 @@ update-grub
 EOF
 
 umount -R /mnt
-cryptsetup close cryptroot
