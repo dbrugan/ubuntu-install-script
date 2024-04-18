@@ -13,6 +13,7 @@ cryptsetup luksFormat "${disk}"2
 cryptsetup open "${disk}"2 cryptroot
 mkfs.btrfs /dev/mapper/cryptroot
 
+# configure btrfs subvolumes
 mount /dev/mapper/cryptroot /mnt
 
 btrfs subvolume create /mnt/root
@@ -22,13 +23,21 @@ btrfs subvolume create /mnt/cache
 btrfs subvolume create /mnt/log
 umount /mnt
 
+# mounting system partitions
+mkdir -p /mnt/boot/efi
+mount "${disk}1" /mnt/boot/efi
+
 mount -o subvol=root /dev/mapper/cryptroot /mnt
+
 mkdir /mnt/home
 mount -o subvol=home /dev/mapper/cryptroot /mnt/home
+
 mkdir /mnt/.snapshots
 mount -o subvol=snapshots /dev/mapper/cryptroot /mnt/.snapshots
+
 mkdir -p /mnt/var/cache
 mount -o subvol=cache /dev/mapper/cryptroot /mnt/var/cache
+
 mkdir /mnt/var/log
 mount -o subvol=log /dev/mapper/cryptroot /mnt/var/log
 
