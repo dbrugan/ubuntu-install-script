@@ -2,7 +2,7 @@
 
 parted --script /dev/sda mklabel gpt
 parted --script /dev/sda mkpart ESP fat32 1MiB 513MiB
-parted --script /dev/sda set 1 boot on
+parted --script /dev/sda set 1 esp on
 parted --script /dev/sda mkpart Root btrfs 512MiB 100%
 
 cryptsetup luksFormat /dev/sda2
