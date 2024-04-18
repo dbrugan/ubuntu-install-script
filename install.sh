@@ -5,7 +5,7 @@ disk="/dev/sda"
 parted --script "$disk" mklabel gpt
 parted --script "$disk" mkpart ESP fat32 1MiB 513MiB
 parted --script "$disk" set 1 esp on
-parted --script "$disk" mkpart CRYPTROOT btrfs 512MiB 100%
+parted --script "$disk" mkpart CRYPTROOT btrfs 513MiB 100%
 
 # formatting partitions
 mkfs.fat -F 32 "${disk}"1
