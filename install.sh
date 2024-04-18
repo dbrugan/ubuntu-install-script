@@ -1,15 +1,16 @@
 #!/bin/bash
 
+disk="/dev/sda"
 # creating partitions
-parted --script /dev/sda mklabel gpt
-parted --script /dev/sda mkpart ESP fat32 1MiB 513MiB
-parted --script /dev/sda set 1 esp on
-parted --script /dev/sda mkpart CRYPTROOT btrfs 512MiB 100%
+parted --script "$disk" mklabel gpt
+parted --script "$disk" mkpart ESP fat32 1MiB 513MiB
+parted --script "$disk" set 1 esp on
+parted --script "$disk" mkpart CRYPTROOT btrfs 512MiB 100%
 
 # formatting partitions
-mkfs.fat -F 32 /dev/sda1
-cryptsetup luksFormat /dev/sda2
-cryptsetup open /dev/sda2 cryptroot
+mkfs.fat -F 32 "${disk}"1
+cryptsetup luksFormat "${disk}"2
+cryptsetup open "${disk}"2 cryptroot
 mkfs.btrfs /dev/mapper/cryptroot
 
 mount /dev/mapper/cryptroot /mnt
