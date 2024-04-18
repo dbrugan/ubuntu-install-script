@@ -1,39 +1,41 @@
-sudo parted /dev/sda mklabel gpt
-sudo parted /dev/sda mkpart EFI fat32 1MiB 512MiB
-sudo parted /dev/sda mkpart Root btrfs 512MiB 100%
-sudo parted /dev/sda set 1 boot on
+#!/bin/bash
 
-sudo cryptsetup luksFormat /dev/sda2
-sudo cryptsetup open --type luks /dev/sda2 sda2_crypt
-sudo mkfs.btrfs /dev/mapper/sda2_crypt 
+parted /dev/sda mklabel gpt
+parted /dev/sda mkpart EFI fat32 1MiB 512MiB
+parted /dev/sda mkpart Root btrfs 512MiB 100%
+parted /dev/sda set 1 boot on
 
-sudo mount /dev/mapper/sda2_crypt /mnt
+cryptsetup luksFormat /dev/sda2
+cryptsetup open --type luks /dev/sda2 sda2_crypt
+mkfs.btrfs /dev/mapper/sda2_crypt 
 
-sudo btrfs subvolume create /mnt/root
-sudo btrfs subvolume create /mnt/home
-sudo btrfs subvolume create /mnt/snapshots
-sudo btrfs subvolume create /mnt/cache
-sudo btrfs subvolume create /mnt/log
-sudo umount /mnt
+mount /dev/mapper/sda2_crypt /mnt
 
-sudo mount -o subvol=root /dev/mapper/sda2_crypt /mnt
-sudo mkdir /mnt/home
-sudo mount -o subvol=home /dev/mapper/sda2_crypt /mnt/home
-sudo mkdir /mnt/.snapshots
-sudo mount -o subvol=snapshots /dev/mapper/sda2_crypt /mnt/.snapshots
-sudo mkdir -p /mnt/var/cache
-sudo mount -o subvol=cache /dev/mapper/sda2_crypt /mnt/var/cache
-sudo mkdir /mnt/var/log
-sudo mount -o subvol=log /dev/mapper/sda2_crypt /mnt/var/log
+btrfs subvolume create /mnt/root
+btrfs subvolume create /mnt/home
+btrfs subvolume create /mnt/snapshots
+btrfs subvolume create /mnt/cache
+btrfs subvolume create /mnt/log
+umount /mnt
 
-sudo apt install debootstrap
-sudo debootstrap jammy /mnt
+mount -o subvol=root /dev/mapper/sda2_crypt /mnt
+mkdir /mnt/home
+mount -o subvol=home /dev/mapper/sda2_crypt /mnt/home
+mkdir /mnt/.snapshots
+mount -o subvol=snapshots /dev/mapper/sda2_crypt /mnt/.snapshots
+mkdir -p /mnt/var/cache
+mount -o subvol=cache /dev/mapper/sda2_crypt /mnt/var/cache
+mkdir /mnt/var/log
+mount -o subvol=log /dev/mapper/sda2_crypt /mnt/var/log
 
-sudo mount --bind /dev /mnt/dev
-sudo mount --bind /dev/pts /mnt/dev/pts
-sudo mount --bind /proc /mnt/proc
-sudo mount --bind /sys /mnt/sys
-sudo cp /etc/resolv.conf /mnt/etc/resolv.conf
+apt install debootstrap
+debootstrap jammy /mnt
+
+mount --bind /dev /mnt/dev
+mount --bind /dev/pts /mnt/dev/pts
+mount --bind /proc /mnt/proc
+mount --bind /sys /mnt/sys
+cp /etc/resolv.conf /mnt/etc/resolv.conf
 
 # define jammy sources
 jammy_sources="\
