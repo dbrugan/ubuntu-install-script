@@ -1,9 +1,9 @@
 #!/bin/bash
 
-parted /dev/sda mklabel gpt
-parted /dev/sda mkpart EFI fat32 1MiB 512MiB
-parted /dev/sda mkpart Root btrfs 512MiB 100%
-parted /dev/sda set 1 boot on
+parted --script /dev/sda mklabel gpt
+parted --script /dev/sda mkpart ESP fat32 1MiB 513MiB
+parted --script /dev/sda set 1 boot on
+parted --script /dev/sda mkpart Root btrfs 512MiB 100%
 
 cryptsetup luksFormat /dev/sda2
 cryptsetup open --type luks /dev/sda2 sda2_crypt
