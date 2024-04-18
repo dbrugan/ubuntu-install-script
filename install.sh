@@ -39,7 +39,7 @@ mkdir /mnt/var/log
 mount -o subvol=log /dev/mapper/cryptroot /mnt/var/log
 
 mkdir -p /mnt/boot/efi
-mount "${disk}1" /mnt/boot/efi
+mount "${disk}"1 /mnt/boot/efi
 
 apt install debootstrap
 debootstrap jammy /mnt
