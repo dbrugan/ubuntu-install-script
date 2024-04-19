@@ -59,6 +59,15 @@ jammy_sources="\
 
 echo "$jammy_sources" > /mnt/etc/apt/sources.list
 
+# configure apt to not install certain packages
+blacklist="\
+  Package: snapd cloud-init landscape-common popularity-contest ubuntu-advantage-tools
+  Pin: release *
+  Pin-Priority: -1
+  "
+
+echo "$blacklist" > /mnt/etc/apt/preferences.d/ignored-packages
+
 # chroot in the installed system
 chroot /mnt /bin/bash <<EOF
   export LANG=C
