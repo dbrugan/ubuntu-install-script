@@ -47,7 +47,7 @@ mount --bind /dev /mnt/dev
 mount --bind /dev/pts /mnt/dev/pts
 mount --bind /proc /mnt/proc
 mount --bind /sys /mnt/sys
-cp /etc/resolv.conf /mnt/etc/resolv.conf
+cp /etc/resolv.conf /mnt/etc/
 
 # define jammy sources
 jammy_sources="\
@@ -67,6 +67,10 @@ chroot /mnt /bin/bash <<EOF
   apt update && apt install -y linux-image-generic grub-efi btrfs-progs flatpak neovim
 
   flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+  dpkg-reconfigure locales
+  dpkg-reconfigure keyboard-configuration
+  dpkg-reconfigure tzdata
 
   grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
   update-grub
