@@ -13,7 +13,7 @@ parted --script "$disk" mkpart ROOT btrfs 513MiB 100%
 
 # formatting partitions
 mkfs.fat -F 32 "${disk}"1
-mkfs.btrfs "${disk}"2
+mkfs.btrfs --force "${disk}"2
 
 # configure btrfs subvolumes
 mount "${disk}"2 /mnt
@@ -44,9 +44,11 @@ mount -o subvol=@log "${disk}"2 /mnt/var/log
 mkdir -p /mnt/boot/efi
 mount "${disk}"1 /mnt/boot/efi
 
+# installing base system
 apt install debootstrap
 debootstrap jammy /mnt
 
+# preparing necessary mount directories for chroot
 mount --bind /dev /mnt/dev
 mount --bind /dev/pts /mnt/dev/pts
 mount --bind /proc /mnt/proc
@@ -63,16 +65,18 @@ jammy_sources="\
 
 echo "$jammy_sources" > /mnt/etc/apt/sources.list
 
+# chroot in the installed system
 chroot /mnt /bin/bash <<EOF
-export LANG=C
-export DEBIAN_FRONTEND=noninteractive
+  export LANG=C
+  export DEBIAN_FRONTEND=noninteractive
 
-apt update && apt install -y linux-image-generic grub-efi btrfs-progs flatpak neovim
+  apt update && apt install -y linux-image-generic grub-efi btrfs-progs flatpak neovim
 
-flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+  flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
-grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
-update-grub
+  grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
+  update-grub
+  
 EOF
 
 umount -R /mnt
