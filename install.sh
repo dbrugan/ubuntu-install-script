@@ -29,19 +29,12 @@ umount /mnt
 # mounting system partitions
 mount -o subvol=@ "${disk}"2 /mnt
 
-mkdir /mnt/home
+mkdir -p /mnt/{home,.snapshots,var/{cache,log},boot/efi}
+
 mount -o subvol=@home "${disk}"2 /mnt/home
-
-mkdir /mnt/.snapshots
 mount -o subvol=@snapshots "${disk}"2 /mnt/.snapshots
-
-mkdir -p /mnt/var/cache
 mount -o subvol=@cache "${disk}"2 /mnt/var/cache
-
-mkdir /mnt/var/log
 mount -o subvol=@log "${disk}"2 /mnt/var/log
-
-mkdir -p /mnt/boot/efi
 mount "${disk}"1 /mnt/boot/efi
 
 # installing base system
