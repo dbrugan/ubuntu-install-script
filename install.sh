@@ -68,10 +68,19 @@ chroot /mnt /bin/bash <<EOF
 
   flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
+  # configure locale, keyboard and timezone
   dpkg-reconfigure locales
   dpkg-reconfigure keyboard-configuration
   dpkg-reconfigure tzdata
 
+  # set root password
+  passwd
+
+  # create user
+  useradd -mG sudo dbrugan
+  passwd dbrugan
+
+  # install bootloader
   grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
   update-grub
   
