@@ -12,11 +12,11 @@ parted --script "$disk" set 1 esp on
 parted --script "$disk" mkpart ROOT btrfs 513MiB 100%
 
 # formatting partitions
-mkfs.fat -F 32 "${disk}"1
-mkfs.btrfs --force "${disk}"2
+mkfs.fat -F 32 "${disk}1"
+mkfs.btrfs --force "${disk}2"
 
 # configure btrfs subvolumes
-mount "${disk}"2 /mnt
+mount "${disk}2" /mnt
 
 btrfs subvolume create /mnt/@
 btrfs subvolume create /mnt/@home
@@ -27,15 +27,16 @@ btrfs subvolume create /mnt/@log
 umount /mnt
 
 # mounting system partitions
-mount -o subvol=@ "${disk}"2 /mnt
+mount_options="noatime,compress=lzo,space_cache=v2"
+mount -o "subvol=@,$mount_options" "${disk}2" /mnt
 
 mkdir -p /mnt/{home,.snapshots,var/{cache,log},boot/efi}
 
-mount -o subvol=@home "${disk}"2 /mnt/home
-mount -o subvol=@snapshots "${disk}"2 /mnt/.snapshots
-mount -o subvol=@cache "${disk}"2 /mnt/var/cache
-mount -o subvol=@log "${disk}"2 /mnt/var/log
-mount "${disk}"1 /mnt/boot/efi
+mount -o "subvol=@home,$mount_options" "${disk}2" /mnt/home
+mount -o "subvol=@snapshots,$mount_options" "${disk}2" /mnt/.snapshots
+mount -o "subvol=@cache,$mount_options" "${disk}2" /mnt/var/cache
+mount -o "subvol=@log,$mount_options" "${disk}2" /mnt/var/log
+mount "${disk}1" /mnt/boot/efi
 
 # installing base system
 apt install debootstrap
