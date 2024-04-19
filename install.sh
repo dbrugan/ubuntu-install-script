@@ -38,18 +38,17 @@ mount -o "subvol=@cache,$mount_options" "${disk}2" /mnt/var/cache
 mount -o "subvol=@log,$mount_options" "${disk}2" /mnt/var/log
 mount "${disk}1" /mnt/boot/efi
 
+# enable universe repository and install necessary tools
+add-apt-repository universe
+apt update && apt install -y debootstrap arch-install-scripts
+
 # installing base system
-apt install debootstrap
 debootstrap jammy /mnt
 
-# preparing necessary mount directories for chroot
-mount --bind /dev /mnt/dev
-mount --bind /dev/pts /mnt/dev/pts
-mount --bind /proc /mnt/proc
-mount --bind /sys /mnt/sys
-cp /etc/resolv.conf /mnt/etc/
+# create new mounting table
+genfstab -U /mnt >> /mnt/etc/fstab
 
-# define jammy sources
+# enabling repositories
 jammy_sources="\
   deb http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
   deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
@@ -69,7 +68,7 @@ blacklist="\
 echo "$blacklist" > /mnt/etc/apt/preferences.d/ignored-packages
 
 # chroot in the installed system
-chroot /mnt /bin/bash <<EOF
+arch-chroot /mnt <<EOF
   export LANG=C
   export DEBIAN_FRONTEND=noninteractive
 
@@ -80,6 +79,10 @@ chroot /mnt /bin/bash <<EOF
   dpkg-reconfigure locales
   dpkg-reconfigure keyboard-configuration
   dpkg-reconfigure tzdata
+
+  # set hostname
+  echo "ubuntu" > /etc/hostname
+  echo "127.0.1.1 ubuntu" >> /etc/hosts
 
   # set root password
   passwd
