@@ -64,9 +64,8 @@ chroot /mnt /bin/bash <<EOF
   export LANG=C
   export DEBIAN_FRONTEND=noninteractive
 
-  apt update && apt install -y linux-image-generic grub-efi btrfs-progs flatpak neovim
-
-  flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+  # install base system utils
+  apt update && apt install -y linux-image-generic grub-efi btrfs-progs neovim nala
 
   # configure locale, keyboard and timezone
   dpkg-reconfigure locales
