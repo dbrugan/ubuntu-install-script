@@ -67,6 +67,14 @@ blacklist="\
 
 echo "$blacklist" > /mnt/etc/apt/preferences.d/ignored-packages
 
+# get root password
+echo "Please enter the root password:"
+read -s root_password
+
+# get user password
+echo "Enter the password for the user:"
+read -s user_password
+
 # chroot in the installed system
 arch-chroot /mnt <<EOF
   export LANG=C
@@ -85,11 +93,11 @@ arch-chroot /mnt <<EOF
   echo "127.0.1.1 ubuntu" >> /etc/hosts
 
   # set root password
-  passwd
+  echo "root:$root_password" | chpasswd
 
   # create user
   useradd -mG sudo dbrugan
-  passwd dbrugan
+  echo "dbrugan:$user_password" | chpasswd
 
   # install bootloader
   grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
