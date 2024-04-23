@@ -83,10 +83,17 @@ arch-chroot /mnt <<EOF
   # install base system utils
   apt update && apt install -y linux-image-generic grub-efi btrfs-progs neovim nala
 
-  # configure locale, keyboard and timezone
-  dpkg-reconfigure locales
-  dpkg-reconfigure keyboard-configuration
-  dpkg-reconfigure tzdata
+  # configure locale
+  echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
+  locale-gen
+  update-locale LANG=en_US.UTF-8
+
+  # configure keyboard
+  echo "KEYMAP=br-abnt2" > /etc/vconsole.conf
+
+  # configure timezone
+  ln -sf /usr/share/zoneinfo/America/Belem /etc/localtime
+  echo "America/Belem" > etc/timezone
 
   # set hostname
   echo "ubuntu" > /etc/hostname
