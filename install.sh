@@ -27,7 +27,7 @@ btrfs subvolume create /mnt/@log
 umount /mnt
 
 # mounting system partitions
-mount_options="noatime,compress=lzo,space_cache=v2"
+mount_options="noatime,compress=zstd,space_cache=v2"
 mount -o "subvol=@,$mount_options" "${disk}2" /mnt
 
 mkdir -p /mnt/{home,.snapshots,var/{cache,log},boot/efi}
