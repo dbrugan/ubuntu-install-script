@@ -68,7 +68,7 @@ blacklist="\
 echo "$blacklist" > /mnt/etc/apt/preferences.d/ignored-packages
 
 # get root password
-echo "Please enter the root password:"
+echo "Enter the root password:"
 read -s root_password
 
 # get user password
