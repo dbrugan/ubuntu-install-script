@@ -81,7 +81,7 @@ arch-chroot /mnt <<EOF
   export DEBIAN_FRONTEND=noninteractive
 
   # install base system utils
-  apt update && apt install -y linux-image-generic grub-efi btrfs-progs neovim nala
+  apt update && apt install -y linux-image-generic grub-efi btrfs-progs neovim nala network-manager
 
   # configure locale
   echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
@@ -105,6 +105,13 @@ arch-chroot /mnt <<EOF
   # create user
   useradd -mG sudo dbrugan
   echo "dbrugan:$user_password" | chpasswd
+
+  # install desktop environment and other userful packages
+  apt install -y gnome-session gnome-console gnome-software nautilus flatpak \
+    gnome-software-plugin-flatpak gnome-tweaks eog baobab gnome-control-center \
+    gnome-disk-utility evince totem
+  flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+  flatpak install flathub org.mozilla.firefox -y
 
   # install bootloader
   grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
