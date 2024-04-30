@@ -2,21 +2,34 @@
 
 disk="/dev/sda"
 
-# Erase existing disk labels and partitions
+# get root password
+echo "Choose the root password:"
+read -s root_password
+
+# get user password
+echo "Choose the password for the user:"
+read -s user_password
+
+# Erase previous disk info
 wipefs -af "$disk"
+sgdisk -Zo "$disk"
 
 # creating partitions
 parted --script "$disk" mklabel gpt
 parted --script "$disk" mkpart ESP fat32 1MiB 513MiB
 parted --script "$disk" set 1 esp on
-parted --script "$disk" mkpart ROOT btrfs 513MiB 100%
+parted --script "$disk" mkpart primary ext4 513MiB 1.5GiB
+parted --script "$disk" mkpart CRYPTROOT btrfs 1.5GiB 100%
 
 # formatting partitions
 mkfs.fat -F 32 "${disk}1"
-mkfs.btrfs --force "${disk}2"
+mkfs.ext4 "${disk}2"
+cryptsetup luksFormat "${disk}3"
+cryptsetup open "${disk}3" cryptroot
+mkfs.btrfs --force /dev/mapper/cryptroot
 
 # configure btrfs subvolumes
-mount "${disk}2" /mnt
+mount /dev/mapper/cryptroot /mnt
 
 btrfs subvolume create /mnt/@
 btrfs subvolume create /mnt/@home
@@ -27,53 +40,74 @@ btrfs subvolume create /mnt/@log
 umount /mnt
 
 # mounting system partitions
-mount_options="noatime,compress=zstd,space_cache=v2"
-mount -o "subvol=@,$mount_options" "${disk}2" /mnt
-
-mkdir -p /mnt/{home,.snapshots,var/{cache,log},boot/efi}
-
-mount -o "subvol=@home,$mount_options" "${disk}2" /mnt/home
-mount -o "subvol=@snapshots,$mount_options" "${disk}2" /mnt/.snapshots
-mount -o "subvol=@cache,$mount_options" "${disk}2" /mnt/var/cache
-mount -o "subvol=@log,$mount_options" "${disk}2" /mnt/var/log
+mount_options="noatime,discard,compress=zstd,ssd,space_cache=v2,commit=120,autodefrag"
+mount -o "subvol=@,$mount_options" /dev/mapper/cryptroot /mnt
+mkdir -p /mnt/{home,.snapshots,var/{cache,log}} # creating directories for mounting the subvolumes
+mount -o "subvol=@home,$mount_options" /dev/mapper/cryptroot /mnt/home
+mount -o "subvol=@snapshots,$mount_options" /dev/mapper/cryptroot /mnt/.snapshots
+mount -o "subvol=@cache,$mount_options" /dev/mapper/cryptroot /mnt/var/cache
+mount -o "subvol=@log,$mount_options" /dev/mapper/cryptroot /mnt/var/log
+mkdir /mnt/boot # creating boot mounting directory
+mount "${disk}2" /mnt/boot
+mkdir /mnt/boot/efi # creating esp mounting directory
 mount "${disk}1" /mnt/boot/efi
 
 # enable universe repository and install necessary tools
-add-apt-repository universe
-apt update && apt install -y debootstrap arch-install-scripts
+add-apt-repository universe && apt update && apt install -y debootstrap arch-install-scripts
 
 # installing base system
-debootstrap jammy /mnt
+debootstrap noble /mnt
 
 # create new mounting table
 genfstab -U /mnt >> /mnt/etc/fstab
 
 # enabling repositories
-jammy_sources="\
-  deb http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
-  deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
-  deb http://archive.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
-  deb http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
-  "
+sources="\
+deb http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu noble-security main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu noble-backports main restricted universe multiverse
+"
 
-echo "$jammy_sources" > /mnt/etc/apt/sources.list
+echo "$sources" > /mnt/etc/apt/sources.list
 
 # configure apt to not install certain packages
+
 blacklist="\
-  Package: snapd cloud-init landscape-common popularity-contest ubuntu-advantage-tools
-  Pin: release *
-  Pin-Priority: -1
-  "
+Package: snapd
+Pin: release *
+Pin-Priority: -1001
 
-echo "$blacklist" > /mnt/etc/apt/preferences.d/ignored-packages
+Package: cloud-init
+Pin: release *
+Pin-Priority: -1001
 
-# get root password
-echo "Enter the root password:"
-read -s root_password
+Package: landscape-common
+Pin: release *
+Pin-Priority: -1001
 
-# get user password
-echo "Enter the password for the user:"
-read -s user_password
+Package: popularity-contest
+Pin: release *
+Pin-Priority: -1001
+
+Package: ubuntu-advantage-tools
+Pin: release *
+Pin-Priority: -1001
+"
+
+echo "$blacklist" > /mnt/etc/apt/preferences.d/ignored-packages.pref
+
+# Get the UUID of the encrypted partition
+root_uuid=$(blkid -s UUID -o value ${disk}3)
+
+# Set Bash as the default shell for new users
+echo 'SHELL=/bin/bash' >> /mnt/etc/default/useradd
+
+# define zram config file
+zram_config="\
+[zram0]
+zram-size = min(ram, 8192)
+"
 
 # chroot in the installed system
 arch-chroot /mnt <<EOF
@@ -81,7 +115,10 @@ arch-chroot /mnt <<EOF
   export DEBIAN_FRONTEND=noninteractive
 
   # install base system utils
-  apt update && apt install -y linux-image-generic grub-efi btrfs-progs neovim nala network-manager
+  apt update && apt install -y --no-install-recommends \
+    linux-image-generic linux-firmware grub-efi btrfs-progs bash \
+    neovim initramfs-tools cryptsetup cryptsetup-initramfs efibootmgr \
+    systemd-zram-generator
 
   # configure locale
   echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
@@ -106,17 +143,42 @@ arch-chroot /mnt <<EOF
   useradd -mG sudo dbrugan
   echo "dbrugan:$user_password" | chpasswd
 
-  # install desktop environment and other userful packages
-  apt install -y gnome-session gnome-console gnome-software nautilus flatpak \
-    gnome-software-plugin-flatpak gnome-tweaks eog baobab gnome-control-center \
-    gnome-disk-utility evince totem
-  flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-  flatpak install flathub org.mozilla.firefox -y
+  # configure crypttab
+  echo "cryptroot UUID=$root_uuid none luks,discard" >> /etc/crypttab
 
-  # install bootloader
+  # configure bootloader
+  sed -i "/^GRUB_CMDLINE_LINUX=/ s/\"$/ cryptdevice=UUID=${root_uuid}:cryptroot\"/" /etc/default/grub
   grub-install --target=x86_64-efi --efi-directory=/boot/efi bootloader-id=ubuntu --recheck
   update-grub
   
+  # update initramfs
+  update-initramfs -u
+  update-grub
+
+  # configure zram
+  echo "$zram_config" >> /etc/systemd/zram-generator.conf
+
+  # cleaning unwanted files
+  rm /etc/apt/preferences.d/ubuntu-pro-esm-apps
+  rm /etc/apt/preferences.d/ubuntu-pro-esm-infra
+
+  # install desktop environment and other userful packages
+  apt install -y --no-install-recommends \
+    gnome-session gnome-shell gdm3 gnome-console gnome-software \
+    gnome-menus nautilus flatpak gnome-software-plugin-flatpak \
+    power-profiles-daemon gnome-tweaks eog baobab gnome-control-center \
+    gnome-disk-utility gnome-bluetooth evince totem avahi-autoipd \
+    bluez btop cups fwupd fwupd-signed fonts-noto-color-emoji gamemode \
+    nala network-manager network-manager-config-connectivity-ubuntu \
+    network-manager-openvpn-gnome network-manager-pptp-gnome neofetch \
+    packagekit systemd-oomd yaru-theme-sound yaru-theme-icon timeshift \
+    xdg-utils xdg-user-dirs-gtk xdg-user-dirs
+  flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+  flatpak install -y flathub \
+    org.mozilla.firefox
+    com.mattjakeman.ExtensionManager
+    org.gnome.FileRoller
+
 EOF
 
 umount -R /mnt
