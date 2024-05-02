@@ -170,7 +170,7 @@ arch-chroot /mnt <<EOF
     gnome-disk-utility gnome-bluetooth evince totem bluez btop cups \
     fwupd fwupd-signed fonts-noto-color-emoji gamemode nala network-manager \
     packagekit systemd-oomd yaru-theme-sound yaru-theme-icon timeshift \
-    xdg-utils xdg-user-dirs-gtk xdg-user-dirs
+    wpasupplicant xdg-utils xdg-user-dirs-gtk xdg-user-dirs
   flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
   flatpak install -y flathub \
     org.mozilla.firefox
