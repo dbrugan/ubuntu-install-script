@@ -118,7 +118,7 @@ arch-chroot /mnt <<EOF
   apt update && apt install -y --no-install-recommends \
     linux-image-generic linux-firmware grub-efi btrfs-progs bash \
     neovim initramfs-tools cryptsetup cryptsetup-initramfs efibootmgr \
-    systemd-zram-generator
+    systemd-zram-generator systemd-oomd
 
   # configure locale
   echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
@@ -165,12 +165,14 @@ arch-chroot /mnt <<EOF
   # install desktop environment and other userful packages
   apt install -y --no-install-recommends \
     gnome-session gnome-shell gdm3 gnome-console gnome-software \
-    gnome-menus nautilus flatpak gnome-software-plugin-flatpak \
-    power-profiles-daemon gnome-tweaks eog baobab gnome-control-center \
-    gnome-disk-utility gnome-bluetooth evince totem bluez btop cups \
-    fwupd fwupd-signed fonts-noto-color-emoji gamemode nala network-manager \
-    packagekit systemd-oomd yaru-theme-sound yaru-theme-icon timeshift \
-    wpasupplicant xdg-utils xdg-user-dirs-gtk xdg-user-dirs
+    gnome-menus nautilus libgdk-pixbuf2.0-bin librsvg2-common \
+    flatpak gnome-software-plugin-flatpak power-profiles-daemon \
+    gnome-tweaks eog baobab gjs gnome-control-center gnome-disk-utility \
+    gnome-bluetooth gnome-sushi gvfs gvfs-backends evince totem \
+    bluez btop cups fwupd fwupd-signed fonts-noto-color-emoji gamemode \
+    nala network-manager packagekit yaru-theme-gtk yaru-theme-sound \
+    yaru-theme-icon timeshift wpasupplicant xdg-utils xdg-user-dirs-gtk \
+    xdg-user-dirs
   flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
   flatpak install -y flathub \
     org.mozilla.firefox
