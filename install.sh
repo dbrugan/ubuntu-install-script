@@ -167,10 +167,8 @@ arch-chroot /mnt <<EOF
     gnome-session gnome-shell gdm3 gnome-console gnome-software \
     gnome-menus nautilus flatpak gnome-software-plugin-flatpak \
     power-profiles-daemon gnome-tweaks eog baobab gnome-control-center \
-    gnome-disk-utility gnome-bluetooth evince totem avahi-autoipd \
-    bluez btop cups fwupd fwupd-signed fonts-noto-color-emoji gamemode \
-    nala network-manager network-manager-config-connectivity-ubuntu \
-    network-manager-openvpn-gnome network-manager-pptp-gnome neofetch \
+    gnome-disk-utility gnome-bluetooth evince totem bluez btop cups \
+    fwupd fwupd-signed fonts-noto-color-emoji gamemode nala network-manager \
     packagekit systemd-oomd yaru-theme-sound yaru-theme-icon timeshift \
     xdg-utils xdg-user-dirs-gtk xdg-user-dirs
   flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
