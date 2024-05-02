@@ -169,10 +169,10 @@ arch-chroot /mnt <<EOF
     flatpak gnome-software-plugin-flatpak power-profiles-daemon \
     gnome-tweaks eog baobab gjs gnome-control-center gnome-disk-utility \
     gnome-bluetooth gnome-sushi gvfs gvfs-backends evince totem \
-    bluez btop cups fwupd fwupd-signed fonts-noto-color-emoji gamemode \
-    nala network-manager packagekit yaru-theme-gtk yaru-theme-sound \
-    yaru-theme-icon timeshift wpasupplicant xdg-utils xdg-user-dirs-gtk \
-    xdg-user-dirs
+    bluez btop cups dosfstools e2fsprogs exfatprogs mtools ntfs-3g \
+    fwupd fwupd-signed fonts-noto-color-emoji gamemode nala network-manager \
+    packagekit udisks2 yaru-theme-gtk yaru-theme-sound yaru-theme-icon \
+    timeshift wpasupplicant xdg-utils xdg-user-dirs-gtk xdg-user-dirs
   flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
   flatpak install -y flathub \
     org.mozilla.firefox
