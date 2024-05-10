@@ -118,7 +118,10 @@ arch-chroot /mnt <<EOF
   apt update && apt install -y --no-install-recommends \
     linux-image-generic linux-firmware grub-efi btrfs-progs bash \
     bash-completion curl neovim initramfs-tools cryptsetup cryptsetup-initramfs \
-    efibootmgr systemd-zram-generator
+    efibootmgr systemd-zram-generator wget
+  
+  # install pacstall manager
+  sudo bash -c "$(curl -fsSL https://pacstall.dev/q/install || wget -q https://pacstall.dev/q/install -O -)"
 
   # configure locale
   echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
