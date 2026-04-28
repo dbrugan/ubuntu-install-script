@@ -40,38 +40,49 @@ def main():
     LUKS_PART = f"{DISK}2"
     EFI_PART = f"{DISK}1"
 
-    print("Installing required packages...")
-    run("apt update && apt install -y arch-install-scripts debootstrap")
+    FORMAT = input("Format and partition disk? (yes/no): ").strip().lower()
 
-    print("Creating partitions...")
-    run(f"parted {DISK} mklabel gpt")
-    run(f"parted {DISK} mkpart ESP fat32 1MiB 2049MiB set 1 esp on")
-    run(f"parted {DISK} mkpart primary 2049MiB 100%")
+    if FORMAT == "yes":
+        print("Installing required packages...")
+        run("apt update && apt install -y arch-install-scripts debootstrap")
 
-    print("Formatting partitions...")
-    run(f"mkfs.fat -F 32 {EFI_PART}")
+        print("Creating partitions...")
+        run(f"parted {DISK} mklabel gpt")
+        run(f"parted {DISK} mkpart ESP fat32 1MiB 2049MiB set 1 esp on")
+        run(f"parted {DISK} mkpart primary 2049MiB 100%")
 
-    print("Setting up LUKS encryption...")
-    run(f"cryptsetup luksFormat --type luks2 {LUKS_PART}")
-    run(f"cryptsetup open {LUKS_PART} root")
-    run("mkfs.btrfs /dev/mapper/root")
+        print("Formatting partitions...")
+        run(f"mkfs.fat -F 32 {EFI_PART}")
 
-    print("Creating BTRFS subvolumes...")
-    run("mount /dev/mapper/root /mnt")
-    run("btrfs subvolume create /mnt/@")
-    run("btrfs subvolume create /mnt/@home")
-    run("btrfs subvolume create /mnt/@cache")
-    run("btrfs subvolume create /mnt/@log")
-    run("umount /mnt")
+        print("Setting up LUKS encryption...")
+        run(f"cryptsetup luksFormat --type luks2 {LUKS_PART}")
+        run(f"cryptsetup open {LUKS_PART} root")
+        run("mkfs.btrfs /dev/mapper/root")
+
+        print("Creating BTRFS subvolumes...")
+        run("mount /dev/mapper/root /mnt")
+        run("btrfs subvolume create /mnt/@")
+        run("btrfs subvolume create /mnt/@home")
+        run("btrfs subvolume create /mnt/@cache")
+        run("btrfs subvolume create /mnt/@log")
+        run("umount /mnt")
+    else:
+        print("Opening encrypted partition...")
+        run(f"cryptsetup open {LUKS_PART} root")
+
+    SUBVOL_ROOT = input("Subvolume for /: ").strip() or "@"
+    SUBVOL_HOME = input("Subvolume for /home: ").strip() or "@home"
+    SUBVOL_CACHE = input("Subvolume for /cache: ").strip() or "@cache"
+    SUBVOL_LOG = input("Subvolume for /log: ").strip() or "@log"
 
     print("Mounting disk...")
-    run("mount -o subvol=@ /dev/mapper/root /mnt")
+    run(f"mount -o subvol={SUBVOL_ROOT} /dev/mapper/root /mnt")
     os.makedirs(f"{MNT}/home", exist_ok=True)
     os.makedirs(f"{MNT}/var/cache", exist_ok=True)
     os.makedirs(f"{MNT}/var/log", exist_ok=True)
-    run("mount -o subvol=@home /dev/mapper/root /mnt/home")
-    run("mount -o subvol=@cache /dev/mapper/root /mnt/var/cache")
-    run("mount -o subvol=@log /dev/mapper/root /mnt/var/log")
+    run(f"mount -o subvol={SUBVOL_HOME} /dev/mapper/root /mnt/home")
+    run(f"mount -o subvol={SUBVOL_CACHE} /dev/mapper/root /mnt/var/cache")
+    run(f"mount -o subvol={SUBVOL_LOG} /dev/mapper/root /mnt/var/log")
     os.makedirs(f"{MNT}/boot", exist_ok=True)
     run(f"mount {EFI_PART} /mnt/boot")
 
