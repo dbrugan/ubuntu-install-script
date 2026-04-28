@@ -1,0 +1,19 @@
+Package: snapd
+Pin: release *
+Pin-Priority: -1
+
+Package: cloud-init
+Pin: release *
+Pin-Priority: -1
+
+Package: landscape-common
+Pin: release *
+Pin-Priority: -1
+
+Package: popularity-contest
+Pin: release *
+Pin-Priority: -1
+
+Package: ubuntu-advantage-tools
+Pin: release *
+Pin-Priority: -1
