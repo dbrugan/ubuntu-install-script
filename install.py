@@ -199,13 +199,7 @@ Type=Application
     run(f"chroot {MNT} systemctl enable NetworkManager")
 
     os.makedirs(f"{MNT}/etc/NetworkManager/conf.d", exist_ok=True)
-    nm_conf = """[main]
-plugins=keyfile
-
-[keyfile]
-unmanaged-devices=none
-"""
-    write_file("/etc/NetworkManager/conf.d/managed.conf", nm_conf)
+    shutil.copy("config/NetworkManager/managed.conf", f"{MNT}/etc/NetworkManager/conf.d/managed.conf")
 
     print("Creating EFI boot entry...")
     run(f"efibootmgr --create --disk {DISK} --part 1 --label 'Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode")
