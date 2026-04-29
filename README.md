@@ -1,25 +1,25 @@
 # Ubuntu Installation Script
 
-My personal script for installing Ubuntu with debootstrap.
+Python script for installing Ubuntu with debootstrap, BTRFS, LUKS encryption, and Hyprland.
+
+## Requirements
+
+- Running Ubuntu (or any Linux with apt)
+- Root access (script prompts for sudo)
 
 ## Usage
 
-Run with sudo:
-
 ```bash
-sudo ./install.sh
-# or
 sudo ./install.py
 ```
-
-Enter the disk device when prompted (e.g., `/dev/sda`).
 
 ## Features
 
 - LUKS encrypted root
-- BTRFS with subvolumes (@, @home, @cache, @log)
+- BTRFS with subvolumes (`@`, `@home`, `@cache`, `@log`)
+- UEFI boot partition
 - Limine bootloader
-- Hyprland desktop
-- SDDM with Xorg
+- Hyprland + SDDM
 - NetworkManager
-- Blocks: snapd, cloud-init, landscape-common, popularity-contest, ubuntu-advantage-tools
+- Flatpak with Flathub
+- Optional: Block snaps, cloud-init, landscape-common, popularity-contest, ubuntu-advantage-tools
