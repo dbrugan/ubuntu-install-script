@@ -1,6 +1,6 @@
 # Ubuntu Installation Script
 
-Python script for installing Ubuntu with debootstrap, BTRFS, LUKS encryption, and Hyprland.
+My personal script for installing Ubuntu with debootstrap.
 
 ## Requirements
 
@@ -9,7 +9,23 @@ Python script for installing Ubuntu with debootstrap, BTRFS, LUKS encryption, an
 
 ## Usage
 
+### One-liner (live environment)
+
 ```bash
+curl -sL https://raw.githubusercontent.com/dbrugan/ubuntu-install-script/test/install.sh | sudo bash
+```
+
+### Manual
+
+```bash
+# Clone repo
+git clone https://github.com/dbrugan/ubuntu-install-script.git
+cd ubuntu-install-script
+
+# Switch to branch
+git checkout test
+
+# Run
 sudo ./install.py
 ```
 
