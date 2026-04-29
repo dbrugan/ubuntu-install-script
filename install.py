@@ -111,10 +111,7 @@ def main():
 
     write_file("/etc/hostname", f"{HOSTNAME}\n")
 
-    hosts_content = f"""127.0.0.1   localhost
-127.0.1.1   {HOSTNAME}
-::1         localhost ip6-localhost ip6-loopback
-"""
+    hosts_content = Path("config/hostname/hosts").read_text().format(HOSTNAME=HOSTNAME)
     write_file("/etc/hosts", hosts_content)
 
     sources_content = Path("config/apt/sources.list").read_text().format(RELEASE=RELEASE)
