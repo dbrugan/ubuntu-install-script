@@ -162,15 +162,11 @@ def main():
     os.makedirs(f"{MNT}/boot/EFI/limine", exist_ok=True)
     shutil.copy(f"{MNT}/tmp/limine/BOOTX64.EFI", f"{MNT}/boot/EFI/limine/")
 
-    limine_conf = f"""timeout: 5
-default_entry: 1
-
-/Ubuntu Linux
-    protocol: linux
-    kernel_path: boot():/vmlinuz-{KERNEL_VERSION}-generic
-    module_path: boot():/initrd.img-{INITRD_VERSION}-generic
-    cmdline: root=/dev/mapper/root rootflags=subvol=@ rd.luks.name={LUKS_UUID}=root rd.luks.options=discard cryptdevice={LUKS_UUID}:root:allow-discards rootfstype=btrfs quiet splash loglevel=3
-"""
+    limine_conf = Path("config/limine/limine.conf").read_text().format(
+        KERNEL_VERSION=KERNEL_VERSION,
+        INITRD_VERSION=INITRD_VERSION,
+        LUKS_UUID=LUKS_UUID
+    )
     write_file("/boot/EFI/limine/limine.conf", limine_conf)
 
     os.makedirs(f"{MNT}/etc/apt/preferences.d", exist_ok=True)
