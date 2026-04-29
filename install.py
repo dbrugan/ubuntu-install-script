@@ -179,15 +179,6 @@ def main():
 
     run(f"chroot {MNT} systemctl enable sddm")
 
-    os.makedirs(f"{MNT}/usr/share/xsessions", exist_ok=True)
-    hyprland_desktop = """[Desktop Entry]
-Name=Hyprland
-Comment=Hyprland Session
-Exec=Hyprland
-Type=Application
-"""
-    write_file("/usr/share/xsessions/hyprland.desktop", hyprland_desktop)
-
     run(f"chroot {MNT} systemctl enable NetworkManager")
 
     os.makedirs(f"{MNT}/etc/NetworkManager/conf.d", exist_ok=True)
