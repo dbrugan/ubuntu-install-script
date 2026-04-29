@@ -6,6 +6,9 @@ import shutil
 from pathlib import Path
 
 MNT = "/mnt"
+BLOCK_SNAPS = input("Block snaps and unwanted packages? (yes/no): ").strip().lower()
+FORMAT = input("Format and partition disk? (yes/no): ").strip().lower()
+DISK = input("Enter disk device (e.g., /dev/sda, /dev/nvme0n1): ").strip()
 
 def run(cmd, check=True, shell=True, capture=False, cwd=None):
     if isinstance(cmd, str):
@@ -29,7 +32,6 @@ def write_file(path, content):
 def main():
     check_root()
 
-    DISK = input("Enter disk device (e.g., /dev/sda, /dev/nvme0n1): ").strip()
 
     if not os.path.exists(DISK):
         print(f"Error: {DISK} is not a block device")
@@ -40,7 +42,6 @@ def main():
     LUKS_PART = f"{DISK}2"
     EFI_PART = f"{DISK}1"
 
-    FORMAT = input("Format and partition disk? (yes/no): ").strip().lower()
 
     if FORMAT == "yes":
         print("Installing required packages...")
@@ -180,10 +181,12 @@ default_entry: 1
     write_file("/boot/EFI/limine/limine.conf", limine_conf)
 
     os.makedirs(f"{MNT}/etc/apt/preferences.d", exist_ok=True)
-    shutil.copy("config/apt/blocked_packages", f"{MNT}/etc/apt/preferences.d/blocked-packages")
 
-    for pkg in ["snapd", "cloud-init", "landscape-common", "popularity-contest", "ubuntu-advantage-tools"]:
-        run(f"chroot {MNT} bash -c 'echo {pkg} hold | dpkg --set-selections'")
+    if BLOCK_SNAPS == "yes":
+        shutil.copy("config/apt/blocked_packages", f"{MNT}/etc/apt/preferences.d/blocked-packages")
+
+        for pkg in ["snapd", "cloud-init", "landscape-common", "popularity-contest", "ubuntu-advantage-tools"]:
+            run(f"chroot {MNT} bash -c 'echo {pkg} hold | dpkg --set-selections'")
 
     run(f"chroot {MNT} systemctl enable sddm")
 
