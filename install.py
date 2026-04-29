@@ -6,9 +6,6 @@ import shutil
 from pathlib import Path
 
 MNT = "/mnt"
-BLOCK_SNAPS = input("Block snaps and unwanted packages? (yes/no): ").strip().lower()
-FORMAT = input("Format and partition disk? (yes/no): ").strip().lower()
-DISK = input("Enter disk device (e.g., /dev/sda, /dev/nvme0n1): ").strip()
 
 def run(cmd, check=True, shell=True, capture=False, cwd=None):
     if isinstance(cmd, str):
@@ -32,6 +29,9 @@ def write_file(path, content):
 def main():
     check_root()
 
+    DISK = input("Enter disk device (e.g., /dev/sda, /dev/nvme0n1): ").strip()
+    FORMAT = input("Format and partition disk? (yes/no): ").strip().lower()
+    BLOCK_SNAPS = input("Block snaps and unwanted packages? (yes/no): ").strip().lower()
 
     if not os.path.exists(DISK):
         print(f"Error: {DISK} is not a block device")
