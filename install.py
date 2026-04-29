@@ -117,11 +117,7 @@ def main():
 """
     write_file("/etc/hosts", hosts_content)
 
-    sources_content = f"""deb http://archive.ubuntu.com/ubuntu {RELEASE} main restricted universe multiverse
-deb http://archive.ubuntu.com/ubuntu {RELEASE}-updates main restricted universe multiverse
-deb http://archive.ubuntu.com/ubuntu {RELEASE}-backports main restricted universe multiverse
-deb http://security.ubuntu.com/ubuntu {RELEASE}-security main restricted universe multiverse
-"""
+    sources_content = Path("config/apt/sources.list").read_text().format(RELEASE=RELEASE)
     write_file("/etc/apt/sources.list", sources_content)
 
     run(f"chroot {MNT} apt update")
