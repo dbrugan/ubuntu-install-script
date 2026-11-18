@@ -9,6 +9,7 @@ state was saved, via auto-detection where possible).
 Pass --reset (or delete the state file) to start over from scratch.
 """
 import os
+import re
 import sys
 import json
 import subprocess
@@ -348,7 +349,8 @@ def main():
     INITRD_VERSION = initrd_file.replace("initrd.img-", "").replace("-generic", "")
 
     def limine_present():
-        return os.path.exists(f"{MNT}/boot/EFI/limine/BOOTX64.EFI")
+        return (os.path.exists(f"{MNT}/boot/EFI/limine/BOOTX64.EFI")
+                and os.path.exists(f"{MNT}/boot/EFI/limine/limine.conf"))
 
     def install_limine():
         print("Installing Limine bootloader...")
@@ -365,6 +367,19 @@ def main():
         )
         write_file("/boot/EFI/limine/limine.conf", limine_conf)
     step("install_limine", install_limine, skip_check=limine_present)
+
+    def limine_fallback_present():
+        return (os.path.exists(f"{MNT}/boot/EFI/BOOT/BOOTX64.EFI")
+                and os.path.exists(f"{MNT}/boot/EFI/BOOT/limine.conf"))
+
+    def install_limine_fallback():
+        print("Installing Limine UEFI fallback (EFI/BOOT)...")
+        os.makedirs(f"{MNT}/boot/EFI/BOOT", exist_ok=True)
+        shutil.copy(f"{MNT}/boot/EFI/limine/BOOTX64.EFI", f"{MNT}/boot/EFI/BOOT/BOOTX64.EFI")
+        # Limine looks for `<EFI app dir>/limine.conf` first, so the fallback
+        # binary needs its own copy of the config next to it.
+        shutil.copy(f"{MNT}/boot/EFI/limine/limine.conf", f"{MNT}/boot/EFI/BOOT/limine.conf")
+    step("install_limine_fallback", install_limine_fallback, skip_check=limine_fallback_present)
 
     os.makedirs(f"{MNT}/etc/apt/preferences.d", exist_ok=True)
 
@@ -388,7 +403,30 @@ def main():
 
     def create_efi_entry():
         print("Creating EFI boot entry...")
-        run(f"efibootmgr --create --disk {DISK} --part 1 --label 'Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode")
+        # efibootmgr must run on the live system (it writes NVRAM), but the
+        # package was only installed inside the chroot further up. Make sure
+        # it exists here too.
+        if shutil.which("efibootmgr") is None:
+            print("Installing efibootmgr on the live system...")
+            run("apt update && apt install -y efibootmgr")
+        # Single backslashes: subprocess+sh passes the string to efibootmgr
+        # verbatim, so double backslashes produce an unloadable path.
+        run(f"efibootmgr --create --disk {DISK} --part 1 --label 'Limine' "
+            f"--loader '\\EFI\\limine\\BOOTX64.EFI' --unicode")
+        listing = run("efibootmgr", check=False, capture=True).stdout.decode(errors="replace")
+        match = re.search(r"Boot([0-9A-Fa-f]{4})\*?\s+Limine", listing)
+        if not match:
+            print("[!] Warning: could not create a Limine NVRAM entry. The "
+                  "\\EFI\\BOOT\\BOOTX64.EFI fallback should still boot the system.")
+            return
+        bootnum = match.group(1)
+        bootorder = []
+        for line in listing.splitlines():
+            if line.startswith("BootOrder:"):
+                bootorder = [b.strip() for b in line.split(":", 1)[1].split(",") if b.strip()]
+                break
+        new_order = [bootnum] + [b for b in bootorder if b != bootnum]
+        run(f"efibootmgr --bootorder {','.join(new_order)}", check=False)
     step("create_efi_entry", create_efi_entry, skip_check=efi_entry_present)
 
     print("Unmounting...")
