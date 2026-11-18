@@ -102,6 +102,15 @@ def is_mounted(path):
     return run(f"mountpoint -q {path}", check=False)
 
 
+def part_path(disk, num):
+    """Return the device path for partition `num` of `disk`.
+
+    NVMe, mmcblk and loop devices need a 'p' separator (e.g. /dev/nvme0n1p2),
+    while SATA/virtio devices do not (e.g. /dev/sda2).
+    """
+    return f"{disk}p{num}" if disk[-1].isdigit() else f"{disk}{num}"
+
+
 def mount_chroot_vfs():
     """Bind-mount virtual filesystems into the chroot.
 
@@ -165,8 +174,8 @@ def main():
 
     RELEASE = "resolute"
     HOSTNAME = "ubuntu"
-    LUKS_PART = f"{DISK}2"
-    EFI_PART = f"{DISK}1"
+    LUKS_PART = part_path(DISK, 2)
+    EFI_PART = part_path(DISK, 1)
 
     prev_disk = STATE.get("disk")
     if prev_disk and prev_disk != DISK:
@@ -331,16 +340,23 @@ def main():
         run(f"chroot {MNT} flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo")
     step("enable_flatpak", enable_flatpak, skip_check=flathub_present)
 
-    def cryptsetup_ready():
-        return any(f.startswith("initrd.img-") for f in os.listdir(f"{MNT}/boot"))
-
     def configure_cryptsetup():
         append_lines_once("/etc/crypttab", [f"root UUID={LUKS_UUID} none luks,discard"])
         append_lines_once("/etc/initramfs-tools/modules", ["dm_crypt", "btrfs"])
-        os.makedirs(f"{MNT}/etc/initramfs-tools/conf.d", exist_ok=True)
-        write_file("/etc/initramfs-tools/conf.d/cryptsetup.conf", "CRYPTSETUP=y\n")
         run(f"chroot {MNT} update-initramfs -u -k all")
-    step("configure_cryptsetup", configure_cryptsetup, skip_check=cryptsetup_ready)
+        # update-initramfs must have run *after* /etc/crypttab was written,
+        # otherwise the initramfs has no root mapping and the system cannot
+        # unlock LUKS at boot ("gave up waiting for root file system device").
+        newest_initrd = max(
+            (f for f in os.listdir(f"{MNT}/boot") if f.startswith("initrd.img-")),
+            key=lambda f: os.path.getmtime(f"{MNT}/boot/{f}"),
+        )
+        crypttab_mtime = Path(f"{MNT}/etc/crypttab").stat().st_mtime
+        # /boot is usually VFAT, whose timestamps have 2-second granularity,
+        # so allow a small margin instead of comparing exactly.
+        if os.path.getmtime(f"{MNT}/boot/{newest_initrd}") < crypttab_mtime - 2:
+            sys.exit("Error: initramfs was not regenerated after /etc/crypttab was written")
+    step("configure_cryptsetup", configure_cryptsetup)
 
     boot_files = os.listdir(f"{MNT}/boot")
     kernel_file = [f for f in boot_files if f.startswith("vmlinuz-")][0]
@@ -363,7 +379,7 @@ def main():
         limine_conf = Path("config/limine/limine.conf").read_text().format(
             KERNEL_VERSION=KERNEL_VERSION,
             INITRD_VERSION=INITRD_VERSION,
-            LUKS_UUID=LUKS_UUID,
+            SUBVOL_ROOT=SUBVOL_ROOT,
         )
         write_file("/boot/EFI/limine/limine.conf", limine_conf)
     step("install_limine", install_limine, skip_check=limine_present)
