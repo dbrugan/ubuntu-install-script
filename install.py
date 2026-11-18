@@ -267,7 +267,12 @@ def main():
 
     def copy_dns():
         print("Copying DNS resolver...")
-        shutil.copy("/etc/resolv.conf", f"{MNT}/etc/resolv.conf")
+        src = "/etc/resolv.conf"
+        dst = f"{MNT}/etc/resolv.conf"
+        if os.path.exists(dst) and os.path.samefile(src, dst):
+            print("[*] copy_dns: source and destination are the same file, skipping")
+            return
+        shutil.copy(src, dst)
     step("copy_dns", copy_dns)
 
     result = run(f"blkid -s UUID -o value {LUKS_PART}", capture=True)
