@@ -1,11 +1,23 @@
 #!/usr/bin/env python3
+"""Ubuntu installer with resume support.
+
+Progress is recorded in /tmp/ubuntu-install-script/install.state.
+Re-running the script skips steps that already completed successfully
+(including steps completed by a previous run that crashed before any
+state was saved, via auto-detection where possible).
+
+Pass --reset (or delete the state file) to start over from scratch.
+"""
 import os
 import sys
+import json
 import subprocess
 import shutil
 from pathlib import Path
 
 MNT = "/mnt"
+STATE_FILE = "/tmp/ubuntu-install-script/install.state"
+
 
 def run(cmd, check=True, shell=True, capture=False, cwd=None):
     if isinstance(cmd, str):
@@ -16,9 +28,53 @@ def run(cmd, check=True, shell=True, capture=False, cwd=None):
         return result
     return result.returncode == 0
 
+
+STATE = {}
+
+
+def load_state():
+    global STATE
+    STATE = {}
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE) as f:
+                STATE = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            STATE = {}
+
+
+def save_state():
+    with open(STATE_FILE, "w") as f:
+        json.dump(STATE, f, indent=2)
+
+
+def mark_done(step_name):
+    STATE[step_name] = True
+    save_state()
+
+
+def step(name, fn, skip_check=None):
+    """Run fn() unless the step is already recorded as done.
+
+    skip_check() may auto-detect that the step's effect already exists
+    (useful when resuming after a crash that happened before state was
+    recorded); in that case the step is marked done and skipped.
+    """
+    if name in STATE or (skip_check and skip_check()):
+        if name not in STATE:
+            mark_done(name)
+        print(f"[*] {name}: already done, skipping")
+        return
+    print(f"[+] {name}...")
+    fn()
+    mark_done(name)
+    print(f"[OK] {name} completed")
+
+
 def check_root():
     if os.geteuid() != 0:
         os.execvpe("/usr/bin/sudo", ["sudo"] + sys.argv)
+
 
 def write_file(path, content):
     full_path = f"{MNT}{path}"
@@ -26,11 +82,80 @@ def write_file(path, content):
     with open(full_path, "w") as f:
         f.write(content)
 
+
+def append_lines_once(path, lines):
+    """Append lines to {MNT}{path}, skipping lines already present (idempotent)."""
+    full_path = f"{MNT}{path}"
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    existing = set()
+    if os.path.exists(full_path):
+        with open(full_path) as f:
+            existing = {line.strip() for line in f}
+    with open(full_path, "a") as f:
+        for line in lines:
+            if line.strip() not in existing:
+                f.write(line + "\n")
+
+
+def is_mounted(path):
+    return run(f"mountpoint -q {path}", check=False)
+
+
+def mount_chroot_vfs():
+    """Bind-mount virtual filesystems into the chroot.
+
+    Without /proc (and friends), package postinst scripts warn heavily and
+    tools like flatpak fail outright ("Unable to create repository at
+    /var/lib/flatpak/repo"). Also required for cryptroot initramfs hooks to
+    detect the root device correctly.
+    """
+    for src in ("/proc", "/sys", "/dev", "/dev/pts", "/run"):
+        dst = f"{MNT}{src}"
+        os.makedirs(dst, exist_ok=True)
+        if not is_mounted(dst):
+            run(f"mount --bind {src} {dst}")
+
+
+def umount_chroot_vfs():
+    for src in ("/run", "/dev/pts", "/dev", "/sys", "/proc"):
+        dst = f"{MNT}{src}"
+        if is_mounted(dst):
+            run(f"umount {dst}", check=False)
+
+
+def set_localtime():
+    """Point /mnt/etc/localtime at America/Belem, idempotently.
+
+    debootstrap/tzdata already creates /etc/localtime inside the target,
+    so a blind os.symlink() here used to fail with FileExistsError.
+    """
+    zone = "/usr/share/zoneinfo/America/Belem"
+    localtime = f"{MNT}/etc/localtime"
+    if os.path.islink(localtime):
+        if os.readlink(localtime) == zone:
+            return  # already correct
+        os.remove(localtime)
+    elif os.path.exists(localtime):
+        os.remove(localtime)
+    os.symlink(zone, localtime)
+
+
 def main():
     check_root()
 
+    if "--reset" in sys.argv:
+        if os.path.exists(STATE_FILE):
+            os.remove(STATE_FILE)
+            print("Cleared previous state; starting fresh.")
+        sys.argv.remove("--reset")
+
+    load_state()
+    done_count = len([k for k in STATE if k != "disk"])
+    if done_count:
+        print(f"Resuming: {done_count} step(s) already completed.")
+
     DISK = input("Enter disk device (e.g., /dev/sda, /dev/nvme0n1): ").strip()
-    FORMAT = input("Format and partition disk? (yes/no): ").strip().lower()
+    FORMAT = input("Format and partition disk? (yes/no; answer 'no' when resuming an install): ").strip().lower()
     BLOCK_SNAPS = input("Block snaps and unwanted packages? (yes/no): ").strip().lower()
 
     if not os.path.exists(DISK):
@@ -42,32 +167,50 @@ def main():
     LUKS_PART = f"{DISK}2"
     EFI_PART = f"{DISK}1"
 
+    prev_disk = STATE.get("disk")
+    if prev_disk and prev_disk != DISK:
+        print(f"Warning: previous run used {prev_disk}; recorded progress may not match {DISK}.")
+    STATE["disk"] = DISK
+    save_state()
 
     if FORMAT == "yes":
-        print("Installing required packages...")
-        run("apt update && apt install -y arch-install-scripts debootstrap")
+        def host_packages():
+            print("Installing required packages...")
+            run("apt update && apt install -y arch-install-scripts debootstrap")
+        step("host_packages", host_packages)
 
-        print("Creating partitions...")
-        run(f"parted {DISK} mklabel gpt")
-        run(f"parted {DISK} mkpart ESP fat32 1MiB 2049MiB set 1 esp on")
-        run(f"parted {DISK} mkpart primary 2049MiB 100%")
+        def partition_disk():
+            print("Creating partitions...")
+            run(f"parted {DISK} mklabel gpt")
+            run(f"parted {DISK} mkpart ESP fat32 1MiB 2049MiB set 1 esp on")
+            run(f"parted {DISK} mkpart primary 2049MiB 100%")
+        step("partition_disk", partition_disk)
 
-        print("Formatting partitions...")
-        run(f"mkfs.fat -F 32 {EFI_PART}")
+        def format_partitions():
+            print("Formatting partitions...")
+            run(f"mkfs.fat -F 32 {EFI_PART}")
+            print("Setting up LUKS encryption...")
+            run(f"cryptsetup luksFormat --type luks2 {LUKS_PART}")
+        step("format_partitions", format_partitions)
 
-        print("Setting up LUKS encryption...")
-        run(f"cryptsetup luksFormat --type luks2 {LUKS_PART}")
-        run(f"cryptsetup open {LUKS_PART} root")
-        run("mkfs.btrfs /dev/mapper/root")
+        def btrfs_format():
+            if not os.path.exists("/dev/mapper/root"):
+                run(f"cryptsetup open {LUKS_PART} root")
+            run("mkfs.btrfs /dev/mapper/root")
+        step("btrfs_format", btrfs_format)
 
-        print("Creating BTRFS subvolumes...")
-        run("mount /dev/mapper/root /mnt")
-        run("btrfs subvolume create /mnt/@")
-        run("btrfs subvolume create /mnt/@home")
-        run("btrfs subvolume create /mnt/@cache")
-        run("btrfs subvolume create /mnt/@log")
-        run("umount /mnt")
-    else:
+        def create_subvolumes():
+            print("Creating BTRFS subvolumes...")
+            run("mount /dev/mapper/root /mnt")
+            for name in ("@", "@home", "@cache", "@log"):
+                if not os.path.exists(f"{MNT}/{name}"):
+                    run(f"btrfs subvolume create {MNT}/{name}")
+            run("umount /mnt")
+        step("create_subvolumes", create_subvolumes)
+
+    # The LUKS mapping does not survive a reboot, so never checkpoint it:
+    # just make sure it is open before mounting.
+    if not os.path.exists("/dev/mapper/root"):
         print("Opening encrypted partition...")
         run(f"cryptsetup open {LUKS_PART} root")
 
@@ -76,77 +219,122 @@ def main():
     SUBVOL_CACHE = input("Subvolume for /cache: ").strip() or "@cache"
     SUBVOL_LOG = input("Subvolume for /log: ").strip() or "@log"
 
-    print("Mounting disk...")
-    run(f"mount -o subvol={SUBVOL_ROOT} /dev/mapper/root /mnt")
-    os.makedirs(f"{MNT}/home", exist_ok=True)
-    os.makedirs(f"{MNT}/var/cache", exist_ok=True)
-    os.makedirs(f"{MNT}/var/log", exist_ok=True)
-    run(f"mount -o subvol={SUBVOL_HOME} /dev/mapper/root /mnt/home")
-    run(f"mount -o subvol={SUBVOL_CACHE} /dev/mapper/root /mnt/var/cache")
-    run(f"mount -o subvol={SUBVOL_LOG} /dev/mapper/root /mnt/var/log")
-    os.makedirs(f"{MNT}/boot", exist_ok=True)
-    run(f"mount {EFI_PART} /mnt/boot")
+    def mount_disk():
+        print("Mounting disk...")
+        if not is_mounted(MNT):
+            run(f"mount -o subvol={SUBVOL_ROOT} /dev/mapper/root {MNT}")
+        os.makedirs(f"{MNT}/home", exist_ok=True)
+        os.makedirs(f"{MNT}/var/cache", exist_ok=True)
+        os.makedirs(f"{MNT}/var/log", exist_ok=True)
+        if not is_mounted(f"{MNT}/home"):
+            run(f"mount -o subvol={SUBVOL_HOME} /dev/mapper/root {MNT}/home")
+        if not is_mounted(f"{MNT}/var/cache"):
+            run(f"mount -o subvol={SUBVOL_CACHE} /dev/mapper/root {MNT}/var/cache")
+        if not is_mounted(f"{MNT}/var/log"):
+            run(f"mount -o subvol={SUBVOL_LOG} /dev/mapper/root {MNT}/var/log")
+        os.makedirs(f"{MNT}/boot", exist_ok=True)
+        if not is_mounted(f"{MNT}/boot"):
+            run(f"mount {EFI_PART} {MNT}/boot")
+    step("mount_disk", mount_disk)
 
-    print("Running debootstrap...")
-    run(f"debootstrap {RELEASE} {MNT}")
+    def base_system_present():
+        return (os.path.exists(f"{MNT}/usr/bin/dpkg")
+                and os.path.exists(f"{MNT}/usr/bin/apt-get"))
 
-    print("Generating fstab...")
-    run(f"genfstab -U {MNT} >> {MNT}/etc/fstab", shell=True)
+    def run_debootstrap():
+        print("Running debootstrap...")
+        run(f"debootstrap {RELEASE} {MNT}")
+    step("debootstrap", run_debootstrap, skip_check=base_system_present)
 
-    print("Copying DNS resolver...")
-    shutil.copy("/etc/resolv.conf", f"{MNT}/etc/resolv.conf")
+    mount_chroot_vfs()
+
+    def fstab_present():
+        fstab = Path(f"{MNT}/etc/fstab")
+        if not fstab.exists():
+            return False
+        for line in fstab.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "UUID=" in line or "/dev/" in line:
+                return True
+        return False
+
+    def generate_fstab():
+        print("Generating fstab...")
+        run(f"genfstab -U {MNT} >> {MNT}/etc/fstab")
+    step("generate_fstab", generate_fstab, skip_check=fstab_present)
+
+    def copy_dns():
+        print("Copying DNS resolver...")
+        shutil.copy("/etc/resolv.conf", f"{MNT}/etc/resolv.conf")
+    step("copy_dns", copy_dns)
 
     result = run(f"blkid -s UUID -o value {LUKS_PART}", capture=True)
     LUKS_UUID = result.stdout.decode().strip()
 
-    print("Configuring system...")
+    def configure_base():
+        print("Configuring system...")
+        set_localtime()
+        write_file("/etc/locale.conf", "LANG=en_US.UTF-8\n")
+        append_lines_once("/etc/locale.gen", ["en_US.UTF-8 UTF-8"])
+        run(f"chroot {MNT} locale-gen")
+        write_file("/etc/hostname", f"{HOSTNAME}\n")
+        hosts_content = Path("config/hostname/hosts").read_text().format(HOSTNAME=HOSTNAME)
+        write_file("/etc/hosts", hosts_content)
+        sources_content = Path("config/apt/sources.list").read_text().format(RELEASE=RELEASE)
+        write_file("/etc/apt/sources.list", sources_content)
+        run(f"chroot {MNT} apt update")
+    step("configure_base", configure_base)
 
-    os.symlink("/usr/share/zoneinfo/America/Belem", f"{MNT}/etc/localtime")
+    def create_users():
+        print("Setting root password...")
+        run(f"chroot {MNT} passwd root")
+        print("Creating user dbrugan...")
+        run(f"chroot {MNT} useradd -m -G sudo,video,audio,input,render -s /bin/bash dbrugan")
+        print("Setting dbrugan password...")
+        run(f"chroot {MNT} passwd dbrugan")
 
-    write_file("/etc/locale.conf", "LANG=en_US.UTF-8\n")
-
-    with open(f"{MNT}/etc/locale.gen", "a") as f:
-        f.write("en_US.UTF-8 UTF-8\n")
-    run(f"chroot {MNT} locale-gen")
-
-    write_file("/etc/hostname", f"{HOSTNAME}\n")
-
-    hosts_content = Path("config/hostname/hosts").read_text().format(HOSTNAME=HOSTNAME)
-    write_file("/etc/hosts", hosts_content)
-
-    sources_content = Path("config/apt/sources.list").read_text().format(RELEASE=RELEASE)
-    write_file("/etc/apt/sources.list", sources_content)
-
-    run(f"chroot {MNT} apt update")
-
-    print("Setting root password...")
-    run(f"chroot {MNT} passwd root")
-
-    print("Creating user dbrugan...")
-    run(f"chroot {MNT} useradd -m -G sudo,video,audio,input,render -s /bin/bash dbrugan")
-    print("Setting dbrugan password...")
-    run(f"chroot {MNT} passwd dbrugan")
+    def users_exist():
+        result = run(f"chroot {MNT} id -u dbrugan", check=False, capture=True)
+        return result.returncode == 0
+    step("create_users", create_users, skip_check=users_exist)
 
     write_file("/etc/kernel-img.conf", "do_symlinks = no\n")
 
     PACKAGES = "linux-image-generic linux-headers-generic cryptsetup cryptsetup-initramfs btrfs-progs initramfs-tools neovim flatpak network-manager sudo curl wget xorg kitty alacritty ghostty hyprland sddm locales console-setup"
-    print("Installing packages...")
-    run(f"chroot {MNT} apt install -y {PACKAGES}")
 
-    print("Enabling flatpak Flathub...")
-    run(f"chroot {MNT} flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo")
+    def packages_present():
+        result = run(
+            f"chroot {MNT} dpkg-query -W -f='${{Status}}' linux-image-generic",
+            check=False, capture=True,
+        )
+        return result.returncode == 0 and b"install ok installed" in result.stdout
 
-    with open(f"{MNT}/etc/crypttab", "a") as f:
-        f.write(f"root UUID={LUKS_UUID} none luks,discard\n")
+    def apt_install():
+        print("Installing packages...")
+        run(f"chroot {MNT} apt install -y {PACKAGES}")
+    step("apt_install_packages", apt_install, skip_check=packages_present)
 
-    with open(f"{MNT}/etc/initramfs-tools/modules", "a") as f:
-        f.write("dm_crypt\n")
-        f.write("btrfs\n")
+    def flathub_present():
+        result = run(f"chroot {MNT} flatpak remotes", check=False, capture=True)
+        return "flathub" in result.stdout.decode(errors="replace").lower()
 
-    os.makedirs(f"{MNT}/etc/initramfs-tools/conf.d", exist_ok=True)
-    write_file("/etc/initramfs-tools/conf.d/cryptsetup.conf", "CRYPTSETUP=y\n")
+    def enable_flatpak():
+        print("Enabling flatpak Flathub...")
+        run(f"chroot {MNT} flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo")
+    step("enable_flatpak", enable_flatpak, skip_check=flathub_present)
 
-    run(f"chroot {MNT} update-initramfs -u -k all")
+    def cryptsetup_ready():
+        return any(f.startswith("initrd.img-") for f in os.listdir(f"{MNT}/boot"))
+
+    def configure_cryptsetup():
+        append_lines_once("/etc/crypttab", [f"root UUID={LUKS_UUID} none luks,discard"])
+        append_lines_once("/etc/initramfs-tools/modules", ["dm_crypt", "btrfs"])
+        os.makedirs(f"{MNT}/etc/initramfs-tools/conf.d", exist_ok=True)
+        write_file("/etc/initramfs-tools/conf.d/cryptsetup.conf", "CRYPTSETUP=y\n")
+        run(f"chroot {MNT} update-initramfs -u -k all")
+    step("configure_cryptsetup", configure_cryptsetup, skip_check=cryptsetup_ready)
 
     boot_files = os.listdir(f"{MNT}/boot")
     kernel_file = [f for f in boot_files if f.startswith("vmlinuz-")][0]
@@ -154,42 +342,64 @@ def main():
     KERNEL_VERSION = kernel_file.replace("vmlinuz-", "").replace("-generic", "")
     INITRD_VERSION = initrd_file.replace("initrd.img-", "").replace("-generic", "")
 
-    print("Installing Limine bootloader...")
-    run(f"chroot {MNT} apt install -y build-essential gcc nasm mtools autoconf git efibootmgr")
-    run(f"chroot {MNT} git clone https://github.com/Limine-Bootloader/Limine.git --branch=v11.x-binary --depth=1 /tmp/limine")
-    run(f"chroot {MNT} bash -c 'cd /tmp/limine && make'")
+    def limine_present():
+        return os.path.exists(f"{MNT}/boot/EFI/limine/BOOTX64.EFI")
 
-    os.makedirs(f"{MNT}/boot/EFI/limine", exist_ok=True)
-    shutil.copy(f"{MNT}/tmp/limine/BOOTX64.EFI", f"{MNT}/boot/EFI/limine/")
-
-    limine_conf = Path("config/limine/limine.conf").read_text().format(
-        KERNEL_VERSION=KERNEL_VERSION,
-        INITRD_VERSION=INITRD_VERSION,
-        LUKS_UUID=LUKS_UUID
-    )
-    write_file("/boot/EFI/limine/limine.conf", limine_conf)
+    def install_limine():
+        print("Installing Limine bootloader...")
+        run(f"chroot {MNT} apt install -y build-essential gcc nasm mtools autoconf git efibootmgr")
+        if not os.path.exists(f"{MNT}/tmp/limine"):
+            run(f"chroot {MNT} git clone https://github.com/Limine-Bootloader/Limine.git --branch=v11.x-binary --depth=1 /tmp/limine")
+        run(f"chroot {MNT} bash -c 'cd /tmp/limine && make'")
+        os.makedirs(f"{MNT}/boot/EFI/limine", exist_ok=True)
+        shutil.copy(f"{MNT}/tmp/limine/BOOTX64.EFI", f"{MNT}/boot/EFI/limine/")
+        limine_conf = Path("config/limine/limine.conf").read_text().format(
+            KERNEL_VERSION=KERNEL_VERSION,
+            INITRD_VERSION=INITRD_VERSION,
+            LUKS_UUID=LUKS_UUID,
+        )
+        write_file("/boot/EFI/limine/limine.conf", limine_conf)
+    step("install_limine", install_limine, skip_check=limine_present)
 
     os.makedirs(f"{MNT}/etc/apt/preferences.d", exist_ok=True)
 
-    if BLOCK_SNAPS == "yes":
+    def block_snaps():
         shutil.copy("config/apt/blocked_packages", f"{MNT}/etc/apt/preferences.d/blocked-packages")
-
         for pkg in ["snapd", "cloud-init", "landscape-common", "popularity-contest", "ubuntu-advantage-tools"]:
             run(f"chroot {MNT} bash -c 'echo {pkg} hold | dpkg --set-selections'")
+    if BLOCK_SNAPS == "yes":
+        step("block_snaps", block_snaps)
 
-    run(f"chroot {MNT} systemctl enable sddm")
+    def enable_services():
+        run(f"chroot {MNT} systemctl enable sddm")
+        run(f"chroot {MNT} systemctl enable NetworkManager")
+        os.makedirs(f"{MNT}/etc/NetworkManager/conf.d", exist_ok=True)
+        shutil.copy("config/NetworkManager/managed.conf", f"{MNT}/etc/NetworkManager/conf.d/managed.conf")
+    step("enable_services", enable_services)
 
-    run(f"chroot {MNT} systemctl enable NetworkManager")
+    def efi_entry_present():
+        result = run("efibootmgr", check=False, capture=True)
+        return "Limine" in result.stdout.decode(errors="replace")
 
-    os.makedirs(f"{MNT}/etc/NetworkManager/conf.d", exist_ok=True)
-    shutil.copy("config/NetworkManager/managed.conf", f"{MNT}/etc/NetworkManager/conf.d/managed.conf")
-
-    print("Creating EFI boot entry...")
-    run(f"efibootmgr --create --disk {DISK} --part 1 --label 'Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode")
+    def create_efi_entry():
+        print("Creating EFI boot entry...")
+        run(f"efibootmgr --create --disk {DISK} --part 1 --label 'Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode")
+    step("create_efi_entry", create_efi_entry, skip_check=efi_entry_present)
 
     print("Unmounting...")
-    run("umount -R /mnt")
+    umount_chroot_vfs()
+    run("umount -R /mnt", check=False)
     print("Done! You can now reboot.")
+    print(f"(Progress was recorded in {STATE_FILE}; delete it or pass --reset to start over.)")
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nAborted by user. Progress is saved; re-run the script to resume.")
+        sys.exit(130)
+    except subprocess.CalledProcessError as e:
+        print(f"\nCommand failed (exit {e.returncode}): {e.cmd}")
+        print("Progress is saved; fix the issue and re-run the script to resume.")
+        sys.exit(1)
